@@ -400,18 +400,7 @@ def update_code():
         if res:
             pr["stats_id"] = res["id"]
         else:
-            cursor = db["stats"].aggregate([
-                {
-                    "$sort": {"average_placements": 1}
-                },
-                {
-                    "$match": {"name": pr["name"]}
-                },
-                {
-                    "$limit": 1
-                }
-            ])
-            res = next(cursor, None)
+            res = db["stats"].find_one({"name": {"$regex": "^{}$".format(pr["name"]), "$options": "i"}})
             if res:
                 pr["stats_id"] = res["id"]
 
