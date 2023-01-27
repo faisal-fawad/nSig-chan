@@ -50,7 +50,7 @@ class CustomHelpCommand(commands.HelpCommand):
 
 # Settings for the discord bot
 intents = discord.Intents.all()
-activity = discord.Activity(type=discord.ActivityType.watching, name="twitch.tv/nSigOfficial")
+activity = discord.Game("Brawlhalla", start=datetime.now(tz))
 helper = CustomHelpCommand()
 owner = 437274901435514891
 
