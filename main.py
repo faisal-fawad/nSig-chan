@@ -50,7 +50,7 @@ class CustomHelpCommand(commands.HelpCommand):
 
 # Settings for the discord bot
 intents = discord.Intents.all()
-activity = discord.Game("Brawlhalla", start=datetime.now(tz))
+activity = discord.Activity(name="Brawlhalla", type=discord.ActivityType.competing)
 helper = CustomHelpCommand()
 owner = 437274901435514891
 
