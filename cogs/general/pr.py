@@ -11,19 +11,6 @@ cluster = MongoClient(os.getenv("MONGO_TOKEN"))
 db = cluster["website"]
 
 
-async def grab_rest(data_set, all_data):
-    other_data = None
-    if data_set["gamemode"] == '1v1':
-        mode = '2v2'
-    elif data_set["gamemode"] == '2v2':
-        mode = '1v1'
-    for person in all_data:
-        if person["name"].lower() == data_set["name"].lower():
-            if person["gamemode"] == mode:
-                other_data = person
-    return other_data
-
-
 async def create_pr_embed(mode_data, full_data):
     name = full_data["name"]
     region = full_data["region"]
@@ -53,79 +40,79 @@ async def create_pr_embed(mode_data, full_data):
     return full_embed
 
 
-async def create_stats_embed(data, name):
-    def make_ordinal(n):
-        n = int(n)
-        if 11 <= (n % 100) <= 13:
-            suffix = 'th'
-        else:
-            suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
-        return str(n) + suffix
-    tournaments = data['tournaments']
+# async def create_stats_embed(data, name):
+#     def make_ordinal(n):
+#         n = int(n)
+#         if 11 <= (n % 100) <= 13:
+#             suffix = 'th'
+#         else:
+#             suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
+#         return str(n) + suffix
+#     tournaments = data['tournaments']
 
-    pages = []
-    split_tournaments = [tournaments[x:x + 3] for x in range(0, len(tournaments), 3)]
-    for section in split_tournaments:
-        full_description = f'**Aliases:** {", ".join(data["names"])}\n\n'
-        for tournament in section:
-            tourney_name = tournament['name']
-            sets_lost = []
-            i = 0
-            for single_set in tournament["sets"]:
-                single_set = single_set["score"]
-                sides = single_set.split(' - ')
-                if single_set == 'DQ':
-                    sets_lost.append('DQ')
-                    i += 1
-                else:
-                    for side in sides:
-                        if tourney_name in side:
-                            score_one = side.split(' ')[-1]
-                            side_one = side.rstrip(side[-1])
-                            side_one = side_one.strip()
-                        else:
-                            score_two = side.split(' ')[-1]
-                            side_two = side.rstrip(side[-1])
-                            side_two = side_two.strip()
-                    try:
-                        if int(score_one) < int(score_two):
-                            sets_lost.append(f'{side_one} **{score_one} - {score_two}** {side_two}')
-                            i += 1
-                    except ValueError:
-                        if score_one == 'L':
-                            sets_lost.append(f'{side_one} **{score_one} - {score_two}** {side_two}')
-                            i += 1
-                if i == 2:
-                    break
-            time = datetime.utcfromtimestamp(tournament["time"]).strftime('%m/%d/%Y')
-            if len(sets_lost) == 0:
-                sets_lost = 'None'
-            else:
-                sets_lost = '\n'.join(sets_lost)
-            tournament_string = f'**[{tournament["tourney"]}]({tournament["url"]})** \n' \
-                                f'**Date:** {time} \n' \
-                                f'**Seed:** {tournament["seed"]} \n' \
-                                f'**Placement:** {make_ordinal(tournament["placement"])} \n' \
-                                f'**Sets Lost:** \n{sets_lost}\n \n'
-            full_description = full_description + tournament_string
-        full_embed = discord.Embed(colour=discord.Colour.green(), title=f'Recent tournament history for {name}',
-                                   timestamp=datetime.now(tz), description=full_description)
-        pages.append(full_embed)
-    return pages
+#     pages = []
+#     split_tournaments = [tournaments[x:x + 3] for x in range(0, len(tournaments), 3)]
+#     for section in split_tournaments:
+#         full_description = f'**Aliases:** {", ".join(data["names"])}\n\n'
+#         for tournament in section:
+#             tourney_name = tournament['name']
+#             sets_lost = []
+#             i = 0
+#             for single_set in tournament["sets"]:
+#                 single_set = single_set["score"]
+#                 sides = single_set.split(' - ')
+#                 if single_set == 'DQ':
+#                     sets_lost.append('DQ')
+#                     i += 1
+#                 else:
+#                     for side in sides:
+#                         if tourney_name in side:
+#                             score_one = side.split(' ')[-1]
+#                             side_one = side.rstrip(side[-1])
+#                             side_one = side_one.strip()
+#                         else:
+#                             score_two = side.split(' ')[-1]
+#                             side_two = side.rstrip(side[-1])
+#                             side_two = side_two.strip()
+#                     try:
+#                         if int(score_one) < int(score_two):
+#                             sets_lost.append(f'{side_one} **{score_one} - {score_two}** {side_two}')
+#                             i += 1
+#                     except ValueError:
+#                         if score_one == 'L':
+#                             sets_lost.append(f'{side_one} **{score_one} - {score_two}** {side_two}')
+#                             i += 1
+#                 if i == 2:
+#                     break
+#             time = datetime.utcfromtimestamp(tournament["time"]).strftime('%m/%d/%Y')
+#             if len(sets_lost) == 0:
+#                 sets_lost = 'None'
+#             else:
+#                 sets_lost = '\n'.join(sets_lost)
+#             tournament_string = f'**[{tournament["tourney"]}]({tournament["url"]})** \n' \
+#                                 f'**Date:** {time} \n' \
+#                                 f'**Seed:** {tournament["seed"]} \n' \
+#                                 f'**Placement:** {make_ordinal(tournament["placement"])} \n' \
+#                                 f'**Sets Lost:** \n{sets_lost}\n \n'
+#             full_description = full_description + tournament_string
+#         full_embed = discord.Embed(colour=discord.Colour.green(), title=f'Recent tournament history for {name}',
+#                                    timestamp=datetime.now(tz), description=full_description)
+#         pages.append(full_embed)
+#     return pages
 
 
 class PowerButtons(discord.ui.View):
-    def __init__(self, ctx, embeds, response, pages):
+    def __init__(self, ctx, embeds, response):
         super().__init__(timeout=300)
         self.response = response
         self.ctx = ctx
         self.embeds = embeds
-        self.pages = pages
-        self.page_number = 0
-        if type(pages) == list:
-            self.max_page = len(pages) - 1
-        else:
-            self.max_page = 0
+        # self.pages = pages
+        # self.page_number = 0
+        # if type(pages) == list:
+        #     self.max_page = len(pages) - 1
+        # else:
+        #     self.max_page = 0
 
     async def on_timeout(self):
         self.clear_items()
@@ -165,61 +152,61 @@ class PowerButtons(discord.ui.View):
         button.disabled = True
         await interaction.response.edit_message(embed=self.embeds[1], view=self)
 
-    @discord.ui.button(label='<<', style=discord.ButtonStyle.green, custom_id='3', disabled=True)
-    async def power_3(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.page_number = self.page_number - 1
-        if self.page_number < 0:
-            self.page_number = 0
-        if self.page_number == 0:
-            button.disabled = True
-        else:
-            button.disabled = False
-        for one in self.children:
-            if one.custom_id == '4':
-                one.disabled = True
-            if one.custom_id == '5':
-                one.disabled = False
-        await interaction.response.edit_message(embed=self.pages[self.page_number], view=self)
+    # @discord.ui.button(label='<<', style=discord.ButtonStyle.green, custom_id='3', disabled=True)
+    # async def power_3(self, interaction: discord.Interaction, button: discord.ui.Button):
+    #     self.page_number = self.page_number - 1
+    #     if self.page_number < 0:
+    #         self.page_number = 0
+    #     if self.page_number == 0:
+    #         button.disabled = True
+    #     else:
+    #         button.disabled = False
+    #     for one in self.children:
+    #         if one.custom_id == '4':
+    #             one.disabled = True
+    #         if one.custom_id == '5':
+    #             one.disabled = False
+    #     await interaction.response.edit_message(embed=self.pages[self.page_number], view=self)
 
-    @discord.ui.button(label='Stats', style=discord.ButtonStyle.green, custom_id='4')
-    async def power_4(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if type(self.pages) != list:
-            embed = self.pages
-        else:
-            embed = self.pages[self.page_number]
-        for one in self.children:
-            if one.custom_id == '1':
-                one.disabled = False
-            if one.custom_id == '2':
-                one.disabled = False
-            if self.max_page == 0:
-                if one.custom_id == '3':
-                    one.disabled = True
-                if one.custom_id == '5':
-                    one.disabled = True
-            elif self.max_page > 0:
-                if one.custom_id == '3':
-                    one.disabled = True
-                if one.custom_id == '5':
-                    one.disabled = False
-        button.disabled = True
-        await interaction.response.edit_message(embed=embed, view=self)
+    # @discord.ui.button(label='Stats', style=discord.ButtonStyle.green, custom_id='4')
+    # async def power_4(self, interaction: discord.Interaction, button: discord.ui.Button):
+    #     if type(self.pages) != list:
+    #         embed = self.pages
+    #     else:
+    #         embed = self.pages[self.page_number]
+    #     for one in self.children:
+    #         if one.custom_id == '1':
+    #             one.disabled = False
+    #         if one.custom_id == '2':
+    #             one.disabled = False
+    #         if self.max_page == 0:
+    #             if one.custom_id == '3':
+    #                 one.disabled = True
+    #             if one.custom_id == '5':
+    #                 one.disabled = True
+    #         elif self.max_page > 0:
+    #             if one.custom_id == '3':
+    #                 one.disabled = True
+    #             if one.custom_id == '5':
+    #                 one.disabled = False
+    #     button.disabled = True
+    #     await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(label='>>', style=discord.ButtonStyle.green, custom_id='5', disabled=True)
-    async def power_5(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.page_number = self.page_number + 1
-        if self.page_number > self.max_page:
-            self.page_number = self.max_page
-        if self.page_number == self.max_page:
-            button.disabled = True
-        else:
-            button.disabled = False
-        for one in self.children:
-            if one.custom_id == '4':
-                one.disabled = True
-            if one.custom_id == '3':
-                one.disabled = False
-        await interaction.response.edit_message(embed=self.pages[self.page_number], view=self)
+    # @discord.ui.button(label='>>', style=discord.ButtonStyle.green, custom_id='5', disabled=True)
+    # async def power_5(self, interaction: discord.Interaction, button: discord.ui.Button):
+    #     self.page_number = self.page_number + 1
+    #     if self.page_number > self.max_page:
+    #         self.page_number = self.max_page
+    #     if self.page_number == self.max_page:
+    #         button.disabled = True
+    #     else:
+    #         button.disabled = False
+    #     for one in self.children:
+    #         if one.custom_id == '4':
+    #             one.disabled = True
+    #         if one.custom_id == '3':
+    #             one.disabled = False
+    #     await interaction.response.edit_message(embed=self.pages[self.page_number], view=self)
 
 
 class Pr(commands.Cog, name="PR"):
@@ -246,11 +233,11 @@ class Pr(commands.Cog, name="PR"):
         ranked_2v2 = False
         stats_rec = False
         if pr_data:
-            try:
-                key = pr_data["stats_id"]
-                stats_rec = True
-            except KeyError:
-                pass
+            # try:
+            #     key = pr_data["stats_id"]
+            #     stats_rec = True
+            # except KeyError:
+            #     pass
             for i in range(len(pr_data["stats"])):
                 if pr_data["stats"][i]["gamemode"] == "1v1":
                     embed_1v1 = pr_data["stats"][i]
@@ -258,18 +245,18 @@ class Pr(commands.Cog, name="PR"):
                 elif pr_data["stats"][i]["gamemode"] == "2v2":
                     embed_2v2 = pr_data["stats"][i]
                     ranked_2v2 = True
-        if stats_rec:
-            stats_data = db["stats"].find_one({"id": key})
-            if stats_data:
-                stats_rec = True
-            else:
-                stats_rec = False
-        else:
-            stats_data = db["stats"].find_one({"name": {"$regex": "^{}$".format(name), "$options": "i"}})
-            if stats_data:
-                stats_rec = True
-            else:
-                stats_rec = False
+        # if stats_rec:
+        #     stats_data = db["stats"].find_one({"id": key})
+        #     if stats_data:
+        #         stats_rec = True
+        #     else:
+        #         stats_rec = False
+        # else:
+        #     stats_data = db["stats"].find_one({"name": {"$regex": "^{}$".format(name), "$options": "i"}})
+        #     if stats_data:
+        #         stats_rec = True
+        #     else:
+        #         stats_rec = False
 
         if ranked_1v1 is False:
             power_1v1 = discord.Embed(timestamp=datetime.now(tz), description=f'**{name} is not power ranked in 1v1**',
@@ -281,13 +268,13 @@ class Pr(commands.Cog, name="PR"):
                                       colour=error_colour)
         else:
             power_2v2 = await create_pr_embed(embed_2v2, pr_data)
-        if stats_rec is False:
-            pages = discord.Embed(timestamp=datetime.now(tz),
-                                  description=f'**{name} has no recent tournament history**',
-                                  colour=error_colour)
-        else:
-            pages = await create_stats_embed(stats_data, name)
-        await msg.edit(embed=power_1v1, view=PowerButtons(embeds=[power_1v1, power_2v2], pages=pages,
+        # if stats_rec is False:
+        #     pages = discord.Embed(timestamp=datetime.now(tz),
+        #                           description=f'**{name} has no recent tournament history**',
+        #                           colour=error_colour)
+        # else:
+        #     pages = await create_stats_embed(stats_data, name)
+        await msg.edit(embed=power_1v1, view=PowerButtons(embeds=[power_1v1, power_2v2],
                                                           ctx=ctx, response=msg))
 
     @commands.hybrid_command(name='earnings', with_app_command=True,
@@ -387,22 +374,22 @@ def update_code():
                                     "gold": gold.text, "silver": silver.text, "bronze": bronze.text}}
                     player_data["stats"].append(new_data)
 
-    for pr in full_data_set:
-        cursor = db["stats"].aggregate([
-            {
-                "$match": {"$expr": {"$gte": [{"$size": {"$setIntersection": ["$socials", pr["socials"]]}}, 1]}}
-            },
-            {
-                "$limit": 1
-            }
-        ])
-        res = next(cursor, None)
-        if res:
-            pr["stats_id"] = res["id"]
-        else:
-            res = db["stats"].find_one({"name": {"$regex": "^{}$".format(pr["name"]), "$options": "i"}})
-            if res:
-                pr["stats_id"] = res["id"]
+    # for pr in full_data_set:
+    #     cursor = db["stats"].aggregate([
+    #         {
+    #             "$match": {"$expr": {"$gte": [{"$size": {"$setIntersection": ["$socials", pr["socials"]]}}, 1]}}
+    #         },
+    #         {
+    #             "$limit": 1
+    #         }
+    #     ])
+    #     res = next(cursor, None)
+    #     if res:
+    #         pr["stats_id"] = res["id"]
+    #     else:
+    #         res = db["stats"].find_one({"name": {"$regex": "^{}$".format(pr["name"]), "$options": "i"}})
+    #         if res:
+    #             pr["stats_id"] = res["id"]
 
     db["pr"].delete_many({})
     db["pr"].insert_many(full_data_set)
