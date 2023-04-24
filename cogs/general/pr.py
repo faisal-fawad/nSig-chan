@@ -404,6 +404,8 @@ def update_code():
     if full_data_set:
         db["pr"].delete_many({})
         db["pr"].insert_many(full_data_set)
+    else:
+        print('Error!')
 
 
 async def setup(bot):
