@@ -317,7 +317,17 @@ def update_code():
     game_modes = ["1v1", "2v2"]
     for single_region in regions:
         for game_mode in game_modes:
-            page = requests.get(f"https://www.brawlhalla.com/rankings/power/{game_mode}/{single_region}")
+            # proxies = {
+            #     'https': '176.113.73.104:3128',
+            #     'http': '176.113.73.104:3128'
+            # }
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,/;q=0.8',
+                'Accept-Language': 'en,en-US;q=0,5'
+            }
+            page = requests.get(f"https://www.brawlhalla.com/rankings/power/{game_mode}/{single_region}", headers=headers)
+            print(page.content)
             soup = BeautifulSoup(page.content, "html.parser")
             rows = soup.findAll("tr", id=None)
             for one_row in rows:
@@ -345,10 +355,10 @@ def update_code():
                         for link in socials.findAll("a", href=True):
                             if 'twitter.com' in link["href"]:
                                 social_one = link["href"]
-                                social_one = social_one[:4] + 's' + social_one[4:]  # Adding character 's' to http
+                                # social_one = social_one[:4] + 's' + social_one[4:]  # Adding character 's' to http
                             elif 'twitch.tv' in link["href"]:
                                 social_two = link["href"]
-                                social_two = social_two[:4] + 's' + social_two[4:]  # Adding character 's' to http
+                                # social_two = social_two[:4] + 's' + social_two[4:]  # Adding character 's' to http
                     if p_name_left_iteration == 1:
                         name = one
                     p_name_left_iteration += 1
@@ -391,8 +401,9 @@ def update_code():
     #         if res:
     #             pr["stats_id"] = res["id"]
 
-    db["pr"].delete_many({})
-    db["pr"].insert_many(full_data_set)
+    if full_data_set:
+        db["pr"].delete_many({})
+        db["pr"].insert_many(full_data_set)
 
 
 async def setup(bot):
