@@ -11,24 +11,28 @@ cluster = MongoClient(os.getenv("MONGO_TOKEN"))
 db = cluster["website"]
 
 
-async def create_pr_embed(mode_data, full_data, mode):
+async def create_pr_embed(full_data, mode_data, info_data, mode):
     # Data from full result
     name = full_data["player"]["name"]
     region = full_data["region"]
     if region is None:
         region = "N/A"
     try:
-        twitter = "https://twitter.com/" + full_data["player"]["twitter"]
+        twitter = "https://twitter.com/" + info_data["player"]["twitter"]
     except KeyError:
         twitter = None
     try:
-        twitch = "https://www.twitch.tv/" + full_data["player"]["twitch"]
+        twitch = "https://www.twitch.tv/" + info_data["player"]["twitch"]
     except KeyError:
         twitch = None
 
     # Data from mode result
-    money_made = mode_data["earnings"]
     rank = mode_data["pr"]["powerRanking"]
+    if rank == 0:
+        rank = full_data[f"pr{mode}"]
+        if rank is None:
+            rank = "N/A"
+    money_made = mode_data["earnings"]
     top_8 = mode_data["pr"]["top8"]
     top_32 = mode_data["pr"]["top32"]
     gold = mode_data["pr"]["gold"]
@@ -40,7 +44,7 @@ async def create_pr_embed(mode_data, full_data, mode):
                                description=f'**PR:** {rank} \n'
                                            f'**Region:** {region.upper()} \n'
                                            f'**Mode:** {mode}')
-    full_embed.add_field(name=f'Placements:', value=f'**Earnings:** {money_made} \n'
+    full_embed.add_field(name=f'Placements:', value=f'**Earnings:** ${money_made} \n'
                                                     f'**Top 8:** {top_8} \n'
                                                     f'**Top 32:** {top_32}', inline=True)
     full_embed.add_field(name=f'Medals:', value=f'**Gold:** 🥇 {gold} \n'
@@ -51,79 +55,45 @@ async def create_pr_embed(mode_data, full_data, mode):
     return full_embed
 
 
-# async def create_stats_embed(data, name):
-#     def make_ordinal(n):
-#         n = int(n)
-#         if 11 <= (n % 100) <= 13:
-#             suffix = 'th'
-#         else:
-#             suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
-#         return str(n) + suffix
-#     tournaments = data['tournaments']
+async def create_stats_embed(tournaments, name):
+    def make_ordinal(n):
+        n = int(n)
+        if 11 <= (n % 100) <= 13:
+            suffix = 'th'
+        else:
+            suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
+        return str(n) + suffix
 
-#     pages = []
-#     split_tournaments = [tournaments[x:x + 3] for x in range(0, len(tournaments), 3)]
-#     for section in split_tournaments:
-#         full_description = f'**Aliases:** {", ".join(data["names"])}\n\n'
-#         for tournament in section:
-#             tourney_name = tournament['name']
-#             sets_lost = []
-#             i = 0
-#             for single_set in tournament["sets"]:
-#                 single_set = single_set["score"]
-#                 sides = single_set.split(' - ')
-#                 if single_set == 'DQ':
-#                     sets_lost.append('DQ')
-#                     i += 1
-#                 else:
-#                     for side in sides:
-#                         if tourney_name in side:
-#                             score_one = side.split(' ')[-1]
-#                             side_one = side.rstrip(side[-1])
-#                             side_one = side_one.strip()
-#                         else:
-#                             score_two = side.split(' ')[-1]
-#                             side_two = side.rstrip(side[-1])
-#                             side_two = side_two.strip()
-#                     try:
-#                         if int(score_one) < int(score_two):
-#                             sets_lost.append(f'{side_one} **{score_one} - {score_two}** {side_two}')
-#                             i += 1
-#                     except ValueError:
-#                         if score_one == 'L':
-#                             sets_lost.append(f'{side_one} **{score_one} - {score_two}** {side_two}')
-#                             i += 1
-#                 if i == 2:
-#                     break
-#             time = datetime.utcfromtimestamp(tournament["time"]).strftime('%m/%d/%Y')
-#             if len(sets_lost) == 0:
-#                 sets_lost = 'None'
-#             else:
-#                 sets_lost = '\n'.join(sets_lost)
-#             tournament_string = f'**[{tournament["tourney"]}]({tournament["url"]})** \n' \
-#                                 f'**Date:** {time} \n' \
-#                                 f'**Seed:** {tournament["seed"]} \n' \
-#                                 f'**Placement:** {make_ordinal(tournament["placement"])} \n' \
-#                                 f'**Sets Lost:** \n{sets_lost}\n \n'
-#             full_description = full_description + tournament_string
-#         full_embed = discord.Embed(colour=discord.Colour.green(), title=f'Recent tournament history for {name}',
-#                                    timestamp=datetime.now(tz), description=full_description)
-#         pages.append(full_embed)
-#     return pages
+    pages = []
+    split_tournaments = [tournaments[x:x + 5] for x in range(0, len(tournaments), 5)]
+    for number, section in enumerate(split_tournaments):
+        full_description = f''
+        for tournament in section:
+            time = datetime.utcfromtimestamp(tournament["tournament"]["startTime"]).strftime('%m/%d/%Y')
+            tournament_string = f'**[{tournament["tournament"]["tournamentName"]}]({"https://www.start.gg/" + tournament["tournament"]["slug"]})** \n' \
+                                f'**Date:** {time} \n' \
+                                f'**Placement:** {make_ordinal(tournament["placement"])} \n\n' \
+
+            full_description = full_description + tournament_string
+        full_embed = discord.Embed(colour=theme, title=f'Tournament history for {name}',
+                                   timestamp=datetime.now(tz), description=full_description)
+        full_embed.set_footer(text=f"Page {number + 1}/{len(split_tournaments)}")
+        pages.append(full_embed)
+    return pages
 
 
 class PowerButtons(discord.ui.View):
-    def __init__(self, ctx, embeds, response):
+    def __init__(self, ctx, embeds, response, pages):
         super().__init__(timeout=300)
         self.response = response
         self.ctx = ctx
         self.embeds = embeds
-        # self.pages = pages
-        # self.page_number = 0
-        # if type(pages) == list:
-        #     self.max_page = len(pages) - 1
-        # else:
-        #     self.max_page = 0
+        self.pages = pages
+        self.page_number = 0
+        if type(pages) == list:
+            self.max_page = len(pages) - 1
+        else:
+            self.max_page = 0
 
     async def on_timeout(self):
         self.clear_items()
@@ -163,61 +133,53 @@ class PowerButtons(discord.ui.View):
         button.disabled = True
         await interaction.response.edit_message(embed=self.embeds[1], view=self)
 
-    # @discord.ui.button(label='<<', style=discord.ButtonStyle.green, custom_id='3', disabled=True)
-    # async def power_3(self, interaction: discord.Interaction, button: discord.ui.Button):
-    #     self.page_number = self.page_number - 1
-    #     if self.page_number < 0:
-    #         self.page_number = 0
-    #     if self.page_number == 0:
-    #         button.disabled = True
-    #     else:
-    #         button.disabled = False
-    #     for one in self.children:
-    #         if one.custom_id == '4':
-    #             one.disabled = True
-    #         if one.custom_id == '5':
-    #             one.disabled = False
-    #     await interaction.response.edit_message(embed=self.pages[self.page_number], view=self)
+    @discord.ui.button(label='<<', style=discord.ButtonStyle.green, custom_id='3', disabled=True)
+    async def power_3(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page_number = self.page_number - 1
+        if self.page_number < 0:
+            self.page_number = self.max_page
+        for one in self.children:
+            if one.custom_id == '4':
+                one.disabled = True
+            if one.custom_id == '5':
+                one.disabled = False
+        await interaction.response.edit_message(embed=self.pages[self.page_number], view=self)
 
-    # @discord.ui.button(label='Stats', style=discord.ButtonStyle.green, custom_id='4')
-    # async def power_4(self, interaction: discord.Interaction, button: discord.ui.Button):
-    #     if type(self.pages) != list:
-    #         embed = self.pages
-    #     else:
-    #         embed = self.pages[self.page_number]
-    #     for one in self.children:
-    #         if one.custom_id == '1':
-    #             one.disabled = False
-    #         if one.custom_id == '2':
-    #             one.disabled = False
-    #         if self.max_page == 0:
-    #             if one.custom_id == '3':
-    #                 one.disabled = True
-    #             if one.custom_id == '5':
-    #                 one.disabled = True
-    #         elif self.max_page > 0:
-    #             if one.custom_id == '3':
-    #                 one.disabled = True
-    #             if one.custom_id == '5':
-    #                 one.disabled = False
-    #     button.disabled = True
-    #     await interaction.response.edit_message(embed=embed, view=self)
+    @discord.ui.button(label='Stats', style=discord.ButtonStyle.green, custom_id='4')
+    async def power_4(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if type(self.pages) != list:
+            embed = self.pages
+        else:
+            embed = self.pages[self.page_number]
+        for one in self.children:
+            if one.custom_id == '1':
+                one.disabled = False
+            if one.custom_id == '2':
+                one.disabled = False
+            if self.max_page == 0:
+                if one.custom_id == '3':
+                    one.disabled = True
+                if one.custom_id == '5':
+                    one.disabled = True
+            elif self.max_page > 0:
+                if one.custom_id == '3':
+                    one.disabled = False
+                if one.custom_id == '5':
+                    one.disabled = False
+        button.disabled = True
+        await interaction.response.edit_message(embed=embed, view=self)
 
-    # @discord.ui.button(label='>>', style=discord.ButtonStyle.green, custom_id='5', disabled=True)
-    # async def power_5(self, interaction: discord.Interaction, button: discord.ui.Button):
-    #     self.page_number = self.page_number + 1
-    #     if self.page_number > self.max_page:
-    #         self.page_number = self.max_page
-    #     if self.page_number == self.max_page:
-    #         button.disabled = True
-    #     else:
-    #         button.disabled = False
-    #     for one in self.children:
-    #         if one.custom_id == '4':
-    #             one.disabled = True
-    #         if one.custom_id == '3':
-    #             one.disabled = False
-    #     await interaction.response.edit_message(embed=self.pages[self.page_number], view=self)
+    @discord.ui.button(label='>>', style=discord.ButtonStyle.green, custom_id='5', disabled=True)
+    async def power_5(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page_number = self.page_number + 1
+        if self.page_number > self.max_page:
+            self.page_number = 0
+        for one in self.children:
+            if one.custom_id == '4':
+                one.disabled = True
+            if one.custom_id == '3':
+                one.disabled = False
+        await interaction.response.edit_message(embed=self.pages[self.page_number], view=self)
 
 
 class Pr(commands.Cog, name="PR"):
@@ -238,49 +200,83 @@ class Pr(commands.Cog, name="PR"):
         if len(ctx.message.mentions) > 0:
             for one in ctx.message.mentions:
                 name = re.sub(f'<@{one.id}>', one.name, name)
+        
+        if name.count(" ") != 0:
+            embed = discord.Embed(timestamp=datetime.now(tz), description=f"**Spaces not supported**",
+                                  colour=error_colour)
+            await msg.edit(embed=embed)
+            return
 
         # Sending request to server
         req = requests.post("https://api.brawltools.com/player/search", json={"query": name})
         try: 
             res = req.json()["searchPlayers"][0]
             id = res["player"]["smashId"]
-        except KeyError:
-            embed = discord.Embed(timestamp=datetime.now(tz), description=f'**{name} not found**',
+        except (KeyError, IndexError):
+            embed = discord.Embed(timestamp=datetime.now(tz), description=f'**{name} is not power ranked**',
                                   colour=error_colour)
             await msg.edit(embed=embed)
             return
 
-        # Grabbing PR in game modes  
+        # Grabbing PR in game modes and updated info (Code should not error past this point)
         req = requests.post("https://api.brawltools.com/player/pr", json={"entrantSmashIds": [id], "gameMode": 1})
         res_1v1 = req.json()
 
         req = requests.post("https://api.brawltools.com/player/pr", json={"entrantSmashIds": [id], "gameMode": 2})
         res_2v2 = req.json()
 
-        # Creating embeds via function
-        power_1v1 = await create_pr_embed(res_1v1, res, "1v1")    
-        power_2v2 = await create_pr_embed(res_2v2, res, "2v2")
+        req = requests.get(f"https://api.brawltools.com/player/{id}")
+        res_info = req.json()
 
-        await msg.edit(embed=power_1v1, view=PowerButtons(embeds=[power_1v1, power_2v2],
+        res_stats = []
+        # Grabs both 1V1 and 2V2 stats
+        for i in range(1, 3):
+            req = requests.post("https://api.brawltools.com/player/placement", json={"entrantSmashIds": [id], "gameMode": i, "isOfficial": True})
+            res_stats.extend(req.json()["playerPlacements"])
+            while req.json()["nextToken"]:
+                req = requests.post("https://api.brawltools.com/player/placement", json={"entrantSmashIds": [id], "gameMode": i, "isOfficial": True, "nextToken": req.json()["nextToken"]})
+                res_stats.extend(req.json()["playerPlacements"])
+        
+        # Creating embeds via function
+        power_1v1 = await create_pr_embed(res, res_1v1, res_info, "1v1")    
+        power_2v2 = await create_pr_embed(res, res_2v2, res_info, "2v2")
+        stats = await create_stats_embed(res_stats, res["player"]["name"])
+
+        await msg.edit(embed=power_1v1, view=PowerButtons(embeds=[power_1v1, power_2v2], pages=stats,
                                                           ctx=ctx, response=msg))
 
-    # @commands.hybrid_command(name='earnings', with_app_command=True,
-    #                          description=f'Shows earnings of a user', usage='(name)')
-    # @app_commands.describe(name='The name of the user')
-    # @app_commands.guilds(discord.Object(id=int(os.getenv('NSIG_SERVER'))))
-    # async def earnings(self, ctx, *, name=None):
-    #     if len(ctx.message.mentions) > 0:
-    #         for one in ctx.message.mentions:
-    #             name = re.sub(f'<@{one.id}>', one.name, name)
-    #     if name is None:
-    #         name = ctx.author.name
-    #     pr_data = db["pr"].find_one({"name": {"$regex": "^{}$".format(name), "$options": "i"}})
-    #     if pr_data:
-    #         embed = discord.Embed(description=f"**{pr_data['name']}'s earnings:** {pr_data['earnings']}", colour=theme)
-    #         await ctx.reply(embed=embed)
-    #     else:
-    #         embed = discord.Embed(description=f"**{name} is not power ranked**", colour=error_colour)
-    #         await ctx.reply(embed=embed)
+
+    @commands.hybrid_command(name='earnings', with_app_command=True,
+                             description=f'Shows earnings of a user', usage='(name)')
+    @app_commands.describe(name='The name of the user')
+    @app_commands.guilds(discord.Object(id=int(os.getenv('NSIG_SERVER'))))
+    async def earnings(self, ctx, *, name=None):
+        if len(ctx.message.mentions) > 0:
+            for one in ctx.message.mentions:
+                name = re.sub(f'<@{one.id}>', one.name, name)
+        if name is None:
+            name = ctx.author.name
+
+        if name.count(" ") != 0:
+            embed = discord.Embed(timestamp=datetime.now(tz), description=f"**Spaces not supported**",
+                                  colour=error_colour)
+            await ctx.reply(embed=embed)
+            return
+        
+        # Sending request to server
+        req = requests.post("https://api.brawltools.com/player/search", json={"query": name})
+        try: 
+            res = req.json()["searchPlayers"][0]
+            id = res["player"]["smashId"]
+        except (KeyError, IndexError):
+            embed = discord.Embed(timestamp=datetime.now(tz), description=f'**{name} is not power ranked**',
+                                  colour=error_colour)
+            await ctx.reply(embed=embed)
+            return
+        
+        req = requests.post("https://api.brawltools.com/player/pr", json={"entrantSmashIds": [id], "gameMode": 1})
+        embed = discord.Embed(description=f"**{res['player']['name']}'s earnings:** ${req.json()['earnings']}", colour=theme)
+        await ctx.reply(embed=embed)
 
 
 async def setup(bot):
