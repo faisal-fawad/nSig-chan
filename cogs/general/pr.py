@@ -11,24 +11,35 @@ cluster = MongoClient(os.getenv("MONGO_TOKEN"))
 db = cluster["website"]
 
 
-async def create_pr_embed(mode_data, full_data):
-    name = full_data["name"]
+async def create_pr_embed(mode_data, full_data, mode):
+    # Data from full result
+    name = full_data["player"]["name"]
     region = full_data["region"]
-    money_made = full_data["earnings"]
-    twitter, twitch = full_data["socials"][0], full_data["socials"][1]
-    rank = mode_data["rank"]
-    gamemode = mode_data["gamemode"]
-    top_8 = mode_data["placements"]["top_8"]
-    top_32 = mode_data["placements"]["top_32"]
-    gold = mode_data["placements"]["gold"]
-    silver = mode_data["placements"]["silver"]
-    bronze = mode_data["placements"]["bronze"]
+    if region is None:
+        region = "N/A"
+    try:
+        twitter = "https://twitter.com/" + full_data["player"]["twitter"]
+    except KeyError:
+        twitter = None
+    try:
+        twitch = "https://www.twitch.tv/" + full_data["player"]["twitch"]
+    except KeyError:
+        twitch = None
+
+    # Data from mode result
+    money_made = mode_data["earnings"]
+    rank = mode_data["pr"]["powerRanking"]
+    top_8 = mode_data["pr"]["top8"]
+    top_32 = mode_data["pr"]["top32"]
+    gold = mode_data["pr"]["gold"]
+    silver = mode_data["pr"]["silver"]
+    bronze = mode_data["pr"]["bronze"]
 
     full_embed = discord.Embed(colour=discord.Colour.green(), title=f'Statistics for {name}',
                                timestamp=datetime.now(tz),
                                description=f'**PR:** {rank} \n'
                                            f'**Region:** {region.upper()} \n'
-                                           f'**Mode:** {gamemode}')
+                                           f'**Mode:** {mode}')
     full_embed.add_field(name=f'Placements:', value=f'**Earnings:** {money_made} \n'
                                                     f'**Top 8:** {top_8} \n'
                                                     f'**Top 32:** {top_32}', inline=True)
@@ -228,184 +239,48 @@ class Pr(commands.Cog, name="PR"):
             for one in ctx.message.mentions:
                 name = re.sub(f'<@{one.id}>', one.name, name)
 
-        pr_data = db["pr"].find_one({"name": {"$regex": "^{}$".format(name), "$options": "i"}})
-        ranked_1v1 = False
-        ranked_2v2 = False
-        stats_rec = False
-        if pr_data:
-            # try:
-            #     key = pr_data["stats_id"]
-            #     stats_rec = True
-            # except KeyError:
-            #     pass
-            for i in range(len(pr_data["stats"])):
-                if pr_data["stats"][i]["gamemode"] == "1v1":
-                    embed_1v1 = pr_data["stats"][i]
-                    ranked_1v1 = True
-                elif pr_data["stats"][i]["gamemode"] == "2v2":
-                    embed_2v2 = pr_data["stats"][i]
-                    ranked_2v2 = True
-        # if stats_rec:
-        #     stats_data = db["stats"].find_one({"id": key})
-        #     if stats_data:
-        #         stats_rec = True
-        #     else:
-        #         stats_rec = False
-        # else:
-        #     stats_data = db["stats"].find_one({"name": {"$regex": "^{}$".format(name), "$options": "i"}})
-        #     if stats_data:
-        #         stats_rec = True
-        #     else:
-        #         stats_rec = False
+        # Sending request to server
+        req = requests.post("https://api.brawltools.com/player/search", json={"query": name})
+        try: 
+            res = req.json()["searchPlayers"][0]
+            id = res["player"]["smashId"]
+        except KeyError:
+            embed = discord.Embed(timestamp=datetime.now(tz), description=f'**{name} not found**',
+                                  colour=error_colour)
+            await msg.edit(embed=embed)
+            return
 
-        if ranked_1v1 is False:
-            power_1v1 = discord.Embed(timestamp=datetime.now(tz), description=f'**{name} is not power ranked in 1v1**',
-                                      colour=error_colour)
-        else:
-            power_1v1 = await create_pr_embed(embed_1v1, pr_data)
-        if ranked_2v2 is False:
-            power_2v2 = discord.Embed(timestamp=datetime.now(tz), description=f'**{name} is not power ranked in 2v2**',
-                                      colour=error_colour)
-        else:
-            power_2v2 = await create_pr_embed(embed_2v2, pr_data)
-        # if stats_rec is False:
-        #     pages = discord.Embed(timestamp=datetime.now(tz),
-        #                           description=f'**{name} has no recent tournament history**',
-        #                           colour=error_colour)
-        # else:
-        #     pages = await create_stats_embed(stats_data, name)
+        # Grabbing PR in game modes  
+        req = requests.post("https://api.brawltools.com/player/pr", json={"entrantSmashIds": [id], "gameMode": 1})
+        res_1v1 = req.json()
+
+        req = requests.post("https://api.brawltools.com/player/pr", json={"entrantSmashIds": [id], "gameMode": 2})
+        res_2v2 = req.json()
+
+        # Creating embeds via function
+        power_1v1 = await create_pr_embed(res_1v1, res, "1v1")    
+        power_2v2 = await create_pr_embed(res_2v2, res, "2v2")
+
         await msg.edit(embed=power_1v1, view=PowerButtons(embeds=[power_1v1, power_2v2],
                                                           ctx=ctx, response=msg))
 
-    @commands.hybrid_command(name='earnings', with_app_command=True,
-                             description=f'Shows earnings of a user', usage='(name)')
-    @app_commands.describe(name='The name of the user')
-    @app_commands.guilds(discord.Object(id=int(os.getenv('NSIG_SERVER'))))
-    async def earnings(self, ctx, *, name=None):
-        if len(ctx.message.mentions) > 0:
-            for one in ctx.message.mentions:
-                name = re.sub(f'<@{one.id}>', one.name, name)
-        if name is None:
-            name = ctx.author.name
-        pr_data = db["pr"].find_one({"name": {"$regex": "^{}$".format(name), "$options": "i"}})
-        if pr_data:
-            embed = discord.Embed(description=f"**{pr_data['name']}'s earnings:** {pr_data['earnings']}", colour=theme)
-            await ctx.reply(embed=embed)
-        else:
-            embed = discord.Embed(description=f"**{name} is not power ranked**", colour=error_colour)
-            await ctx.reply(embed=embed)
-
-    @commands.hybrid_command(name='updatepr', with_app_command=True,
-                             description=f'Updates the power ranking file', usage='')
-    @app_commands.guilds(discord.Object(id=int(os.getenv('NSIG_SERVER'))))
-    @commands.cooldown(1, 360, commands.BucketType.user)
-    @commands.has_any_role(503631961185845269, 793387151148318720, 735685683716423691)
-    async def updatepr(self, ctx):
-        embed = discord.Embed(description=f'**PR file is being updated...**\n'
-                                          f'Note that this command takes about a minute!', colour=argument_colour)
-        msg = await ctx.reply(embed=embed)
-        # Line below prevents blocking
-        await self.bot.loop.run_in_executor(None, update_code)
-        new_embed = discord.Embed(description=f'**PR file has been updated!**', colour=theme)
-        await msg.edit(embed=new_embed)
-
-
-def update_code():
-    full_data_set = []
-    i = 0
-    regions = ["us-e", "eu", "sea", "brz", "aus"]
-    game_modes = ["1v1", "2v2"]
-    for single_region in regions:
-        for game_mode in game_modes:
-            # proxies = {
-            #     'https': '176.113.73.104:3128',
-            #     'http': '176.113.73.104:3128'
-            # }
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,/;q=0.8',
-                'Accept-Language': 'en,en-US;q=0,5'
-            }
-            page = requests.get(f"https://www.brawlhalla.com/rankings/power/{game_mode}/{single_region}", headers=headers)
-            print(page.content)
-            soup = BeautifulSoup(page.content, "html.parser")
-            rows = soup.findAll("tr", id=None)
-            for one_row in rows:
-                social_one = None
-                social_two = None
-                p_center_iteration = 0
-                for one in one_row.findAll("td", class_="pcenter"):
-                    if p_center_iteration == 0:
-                        rank = one
-                    elif p_center_iteration == 1:
-                        top_8 = one
-                    elif p_center_iteration == 2:
-                        top_32 = one
-                    elif p_center_iteration == 3:
-                        gold = one
-                    elif p_center_iteration == 4:
-                        silver = one
-                    elif p_center_iteration == 5:
-                        bronze = one
-                    p_center_iteration += 1
-                p_name_left_iteration = 0
-                for one in one_row.findAll("td", class_="pnameleft"):
-                    if p_name_left_iteration == 0:
-                        socials = one
-                        for link in socials.findAll("a", href=True):
-                            if 'twitter.com' in link["href"]:
-                                social_one = link["href"]
-                                # social_one = social_one[:4] + 's' + social_one[4:]  # Adding character 's' to http
-                            elif 'twitch.tv' in link["href"]:
-                                social_two = link["href"]
-                                # social_two = social_two[:4] + 's' + social_two[4:]  # Adding character 's' to http
-                    if p_name_left_iteration == 1:
-                        name = one
-                    p_name_left_iteration += 1
-                earnings = one_row.find("td", style=True)
-                real_region = single_region
-                if real_region == "us-e":
-                    real_region = "na"
-                elif real_region == "brz":
-                    real_region = "sa"
-                player_data = next((pd for pd in full_data_set if pd["name"].lower() == name.text.lower()), None)
-                if player_data is None:
-                    i += 1
-                    data_set = {"name": name.text, "id": i, "region": real_region,
-                                "socials": [social_one, social_two], "earnings": earnings.text, "stats": [{
-                                    "gamemode": game_mode, "rank": rank.text, "placements": {
-                                        "top_8": top_8.text, "top_32": top_32.text,
-                                        "gold": gold.text, "silver": silver.text,
-                                        "bronze": bronze.text}}]}
-                    full_data_set.append(data_set)
-                else:
-                    new_data = {"gamemode": game_mode, "rank": rank.text, "placements": {
-                                    "top_8": top_8.text, "top_32": top_32.text,
-                                    "gold": gold.text, "silver": silver.text, "bronze": bronze.text}}
-                    player_data["stats"].append(new_data)
-
-    # for pr in full_data_set:
-    #     cursor = db["stats"].aggregate([
-    #         {
-    #             "$match": {"$expr": {"$gte": [{"$size": {"$setIntersection": ["$socials", pr["socials"]]}}, 1]}}
-    #         },
-    #         {
-    #             "$limit": 1
-    #         }
-    #     ])
-    #     res = next(cursor, None)
-    #     if res:
-    #         pr["stats_id"] = res["id"]
+    # @commands.hybrid_command(name='earnings', with_app_command=True,
+    #                          description=f'Shows earnings of a user', usage='(name)')
+    # @app_commands.describe(name='The name of the user')
+    # @app_commands.guilds(discord.Object(id=int(os.getenv('NSIG_SERVER'))))
+    # async def earnings(self, ctx, *, name=None):
+    #     if len(ctx.message.mentions) > 0:
+    #         for one in ctx.message.mentions:
+    #             name = re.sub(f'<@{one.id}>', one.name, name)
+    #     if name is None:
+    #         name = ctx.author.name
+    #     pr_data = db["pr"].find_one({"name": {"$regex": "^{}$".format(name), "$options": "i"}})
+    #     if pr_data:
+    #         embed = discord.Embed(description=f"**{pr_data['name']}'s earnings:** {pr_data['earnings']}", colour=theme)
+    #         await ctx.reply(embed=embed)
     #     else:
-    #         res = db["stats"].find_one({"name": {"$regex": "^{}$".format(pr["name"]), "$options": "i"}})
-    #         if res:
-    #             pr["stats_id"] = res["id"]
-
-    if full_data_set:
-        db["pr"].delete_many({})
-        db["pr"].insert_many(full_data_set)
-    else:
-        print('Error!')
+    #         embed = discord.Embed(description=f"**{name} is not power ranked**", colour=error_colour)
+    #         await ctx.reply(embed=embed)
 
 
 async def setup(bot):
