@@ -2,7 +2,7 @@
 
 ### This bot... 
 - uses hybrid commands, which means that a command can be invoked with `.` or `/`
-- web scrapes data from [this source](https://www.brawlhalla.com/rankings/1v1/) when `.updatepr` or `/updatepr` is ran
+- uses requests to query player-based video game statistics
 - reads and writes sizeable data through MongoDB
 
 ### Sample of commands:
