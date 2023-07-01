@@ -51,7 +51,8 @@ async def create_pr_embed(full_data, mode_data, info_data, mode):
                                                 f'**Silver:** 🥈 {silver} \n'
                                                 f'**Bronze:** 🥉 {bronze}', inline=True)
     full_embed.add_field(name=f'Socials:', value=f'**Twitter:** {twitter} \n'
-                                                 f'**Twitch:** {twitch}', inline=False)
+                                                 f'**Twitch:** {twitch}\n'
+                                                 f'**Stats:** https://prostats.brawlhalla.com/singles/{info_data["player"]["smashId"]}', inline=False)
     return full_embed
 
 
