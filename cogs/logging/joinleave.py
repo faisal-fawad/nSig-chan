@@ -16,8 +16,6 @@ class JoinLeave(commands.Cog, name="JoinLeave"):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        welcome = self.bot.get_channel(int(os.getenv('WELCOME_CHANNEL')))
-        await welcome.send(f'Welcome to nSig! {member.mention}')
         channel = self.bot.get_channel(int(os.getenv('JOIN_LOGS')))
         embed = discord.Embed(colour=theme, timestamp=datetime.now(tz))
         embed.set_author(name=f'{member} has joined', icon_url=member.display_avatar)
