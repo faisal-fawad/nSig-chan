@@ -181,7 +181,10 @@ class Public(commands.Cog, name="Public"):
         embed.set_thumbnail(url=member.display_avatar)
         embed.set_author(name=f'User Info - {member}', icon_url=member.display_avatar)
         embed.add_field(name='Account Created On:', value=f'<t:{int(member.created_at.timestamp())}:D>')
-        embed.add_field(name='Joined Server On:', value=f'<t:{int(member.joined_at.timestamp())}:D>')
+        try:
+            embed.add_field(name='Joined Server On:', value=f'<t:{int(member.joined_at.timestamp())}:D>')
+        except AttributeError:
+            raise commands.NoPrivateMessage
         if len(member.roles[1:]) == 0:
             embed.add_field(name=f'Roles [{len(member.roles[1:])}]:', value=f'No roles')
         else:

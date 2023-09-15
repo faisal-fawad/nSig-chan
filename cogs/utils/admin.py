@@ -2,6 +2,7 @@ import discord.app_commands
 
 from universal import *
 import os
+import subprocess
 
 
 class Admin(commands.Cog, name="Admin"):
@@ -40,7 +41,6 @@ class Admin(commands.Cog, name="Admin"):
         await self.bot.reload_extension(f'cogs.{folder}.{file}')
         embed = discord.Embed(description=f'**Extension reloaded**', colour=theme)
         await ctx.reply(embed=embed)
-
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Admin(bot))
