@@ -16,7 +16,7 @@ async def create_embeds(res):
     async def create_pr_embed(full_data, mode_data, info_data, mode):
         # Data from full result
         name = full_data["player"]["name"]
-        region = full_data["region"]
+        region = mode_data["pr"]["region"]
         if region is None:
             region = "N/A"
         try:
@@ -34,7 +34,7 @@ async def create_embeds(res):
             rank = full_data[f"pr{mode}"]
             if rank is None:
                 rank = "N/A"
-        money_made = mode_data["earnings"]
+        money_made = full_data["earnings"]
         top_8 = mode_data["pr"]["top8"]
         top_32 = mode_data["pr"]["top32"]
         gold = mode_data["pr"]["gold"]
